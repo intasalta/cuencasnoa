@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cuencas Hídricas del NOA | INTA EEA Salta</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    .leaflet-popup-content-wrapper {
+      background: #1e293b;
+      color: #f8fafc;
+      border-radius: 12px;
+      padding: 4px;
+      border: 1px solid #334155;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    .leaflet-popup-tip { background: #1e293b; }
+    .leaflet-container { background: #090d16; font-family: 'Inter', sans-serif; }
+  </style>
+</head>
+<body class="h-full bg-slate-950 text-slate-100 flex flex-col overflow-hidden">
+
+  <!-- HEADER -->
+  <header class="h-16 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-3 sm:px-6 flex items-center justify-between z-30 shrink-0">
+    <div class="flex items-center gap-2.5 sm:gap-3.5">
+      <!-- INTA Official Logo -->
+      <img src="logo_inta.png" alt="Logo INTA" class="h-8 sm:h-9 w-auto object-contain brightness-110 drop-shadow cursor-pointer" onclick="openAboutModal()" />
+      
+      <div class="border-l border-slate-800 pl-2.5 sm:pl-3.5">
+        <div class="flex items-center gap-2">
+          <h1 class="font-bold text-sm sm:text-base md:text-lg text-white leading-tight">Cuencas Hídricas del NOA</h1>
+          <span class="text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full hidden md:inline-block">INTA EEA Salta</span>
+        </div>
+        <p class="text-[11px] text-slate-400 truncate max-w-[200px] sm:max-w-none">H. Paoli, H. Elena, J. Mosciaro, F. Ledesma, Y. Noé</p>
+      </div>
+    </div>
+
+    <!-- Actions and Search -->
+    <div class="flex items-center gap-2 sm:gap-3">
+      <!-- Search input -->
+      <div class="relative w-36 sm:w-56 md:w-64">
+        <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+        <input 
+          id="searchInput"
+          type="text" 
+          placeholder="Buscar subcuenca..." 
+          class="w-full pl-8 pr-3 py-1.5 bg-slate-800/80 border border-slate-700 rounded-lg text-xs md:text-sm text-slate-200 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+        />
+        <div id="searchResults" class="hidden absolute top-full mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg shadow-2xl max-h-60 overflow-y-auto z-50"></div>
+      </div>
+
+      <!-- Macrobasin Dropdown Filter -->
+      <select 
+        id="macroFilter"
+        class="hidden md:block bg-slate-800/80 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 max-w-[180px] truncate"
+      >
+        <option value="all">Todas las Cuencas (16)</option>
+      </select>
+
+      <!-- Botón ¿Quiénes Somos? -->
+      <button 
+        id="btnAbout"
+        onclick="openAboutModal()"
+        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium transition"
+        title="Ver autores e información institucional"
+      >
+        <i data-lucide="users" class="w-3.5 h-3.5 text-emerald-400"></i>
+        <span class="hidden sm:inline">Autores</span>
+      </button>
+
+      <!-- Botón Descargar en Geo-Nodo INTA -->
+      <a 
+        href="https://geo-nodo01.inta.gob.ar/catalogue/#/document/64" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 text-xs font-medium transition"
+        title="Descargar informes y publicación original en Geo-Nodo INTA"
+      >
+        <i data-lucide="download-cloud" class="w-3.5 h-3.5"></i>
+        <span class="hidden lg:inline">Geo-Nodo INTA</span>
+      </a>
+
+      <!-- Reset View Button -->
+      <button 
+        id="btnResetMap" 
+        title="Restablecer vista del mapa completo" 
+        class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition"
+      >
+        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <div class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+    
+    <!-- LEFT PANEL: MAP -->
+    <div class="w-full lg:w-[50%] xl:w-[48%] h-[40vh] lg:h-full relative shrink-0 border-b lg:border-b-0 lg:border-r border-slate-800">
+      <div id="map" class="w-full h-full"></div>
+
+      <!-- Controls Widget (Basemap + Transparent Borders Switcher) -->
+      <div class="absolute top-4 left-14 z-[1000] bg-slate-900/90 backdrop-blur border border-slate-700 rounded-xl p-1.5 shadow-xl flex flex-wrap items-center gap-1.5">
+        
+        <!-- Basemaps -->
+        <div class="flex gap-1">
+          <button data-layer="satellite" class="basemap-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-600 text-white transition">Satélite</button>
+          <button data-layer="topo" class="basemap-btn px-2.5 py-1 text-xs font-medium rounded-lg text-slate-300 hover:bg-slate-800 transition">Relieve</button>
+          <button data-layer="dark" class="basemap-btn px-2.5 py-1 text-xs font-medium rounded-lg text-slate-300 hover:bg-slate-800 transition">Oscuro</button>
+          <button data-layer="osm" class="basemap-btn px-2.5 py-1 text-xs font-medium rounded-lg text-slate-300 hover:bg-slate-800 transition">Calles</button>
+        </div>
+
+        <div class="h-4 w-px bg-slate-700 mx-0.5"></div>
+
+        <!-- Toggle: Solo Límites vs Relleno Coloreado -->
+        <button 
+          id="btnToggleFill" 
+          onclick="toggleMapFillMode()"
+          class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 transition flex items-center gap-1.5"
+          title="Alternar entre ver las cuencas coloreadas o ver sólo los límites transparentes sobre la imagen satelital"
+        >
+          <i id="iconToggleFill" data-lucide="eye" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span id="lblToggleFill">Solo Límites</span>
+        </button>
+      </div>
+
+      <!-- Legend / Info overlay at bottom left of map -->
+      <div class="absolute bottom-4 left-4 z-[1000] bg-slate-900/90 backdrop-blur border border-slate-800 rounded-xl p-3 shadow-xl max-w-xs text-xs pointer-events-auto">
+        <div class="flex items-center justify-between gap-2 mb-1">
+          <span class="font-semibold text-slate-200 flex items-center gap-1.5">
+            <i data-lucide="layers" class="w-3.5 h-3.5 text-emerald-400"></i>
+            Cartografía del NOA
+          </span>
+          <span id="subCountBadge" class="text-[10px] font-medium bg-slate-800 text-emerald-400 px-2 py-0.5 rounded-full border border-slate-700">85 Subcuencas</span>
+        </div>
+        <p class="text-[11px] text-slate-400 leading-snug">
+          Haz clic sobre cualquier subcuenca en el mapa para cargar su información técnica sistematizada.
+        </p>
+      </div>
+
+      <!-- Loading overlay -->
+      <div id="mapLoader" class="absolute inset-0 z-[2000] bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+        <div class="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+        <span class="text-sm font-medium text-slate-200">Cargando cartografía hídrica...</span>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL: DASHBOARD "CAJITAS" (BENTO GRID) -->
+    <div id="sidebarScroll" class="w-full lg:w-[50%] xl:w-[52%] h-[60vh] lg:h-full overflow-y-auto p-4 md:p-6 space-y-4 bg-slate-950">
+      
+      <!-- DEFAULT WELCOME STATE -->
+      <div id="welcomeState" class="bg-slate-900/60 border border-slate-800 rounded-2xl p-8 text-center my-auto flex flex-col items-center justify-center min-h-[450px]">
+        <div class="w-20 h-20 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-5 text-emerald-400 shadow-inner">
+          <i data-lucide="map-pin" class="w-10 h-10 animate-bounce"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-white mb-2">Explorador de Cuencas del NOA</h2>
+        <p class="text-sm text-slate-400 max-w-md mx-auto mb-6 leading-relaxed">
+          Pica sobre cualquier subcuenca en el mapa o búscala en la barra superior para acceder a su ficha técnica sistematizada, morfometría y mapas temáticos oficiales.
+        </p>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full max-w-lg mb-6">
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 text-center">
+            <span class="text-2xl font-bold text-emerald-400">85</span>
+            <p class="text-[11px] text-slate-400 mt-0.5">Subcuencas</p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 text-center">
+            <span class="text-2xl font-bold text-cyan-400">16</span>
+            <p class="text-[11px] text-slate-400 mt-0.5">Macrocuencas</p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 text-center">
+            <span class="text-2xl font-bold text-amber-400">100</span>
+            <p class="text-[11px] text-slate-400 mt-0.5">Informes PDF</p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 text-center">
+            <span class="text-2xl font-bold text-violet-400">100%</span>
+            <p class="text-[11px] text-slate-400 mt-0.5">Sistematizado</p>
+          </div>
+        </div>
+
+        <a 
+          href="https://geo-nodo01.inta.gob.ar/catalogue/#/document/64" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-900/30 transition"
+        >
+          <i data-lucide="external-link" class="w-4 h-4"></i>
+          Ver publicación completa en Geo-Nodo INTA
+        </a>
+      </div>
+
+      <!-- ACTIVE SUBCUENCA DETAIL VIEW (HIDDEN BY DEFAULT) -->
+      <div id="detailView" class="hidden space-y-4">
+        
+        <!-- CAJA 1: ENCABEZADO DE LA SUBCUENCA -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+          <div id="headerColorBar" class="absolute top-0 left-0 right-0 h-1.5 bg-emerald-500"></div>
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span id="subMacroBadge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  Macrocuenca
+                </span>
+                <span id="subCodeBadge" class="text-xs text-slate-400 font-mono bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700">
+                  ID
+                </span>
+              </div>
+              <h2 id="subTitle" class="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+                Nombre de la Subcuenca
+              </h2>
+            </div>
+            <div class="flex items-center gap-2 self-start sm:self-center">
+              <button 
+                id="btnZoomToSub"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition"
+              >
+                <i data-lucide="focus" class="w-4 h-4 text-emerald-400"></i>
+                Centrar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CAJA 2: GRID DE KPIS MORFOMÉTRICOS -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <!-- Superficie -->
+          <div class="bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 transition shadow-lg">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+              <span class="text-xs font-medium">Superficie</span>
+              <div class="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                <i data-lucide="maximize-2" class="w-4 h-4"></i>
+              </div>
+            </div>
+            <div class="flex items-baseline gap-1">
+              <span id="kpiSuperficie" class="text-2xl font-black text-white">0</span>
+              <span class="text-xs text-slate-400 font-semibold">km²</span>
+            </div>
+            <div class="text-[11px] text-slate-400 mt-1" id="kpiSupShare">Área del polígono</div>
+          </div>
+
+          <!-- Perímetro -->
+          <div class="bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 transition shadow-lg">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+              <span class="text-xs font-medium">Perímetro</span>
+              <div class="w-7 h-7 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+                <i data-lucide="activity" class="w-4 h-4"></i>
+              </div>
+            </div>
+            <div class="flex items-baseline gap-1">
+              <span id="kpiPerimetro" class="text-2xl font-black text-white">0</span>
+              <span class="text-xs text-slate-400 font-semibold">km</span>
+            </div>
+            <div class="text-[11px] text-slate-400 mt-1">Límite perimetral</div>
+          </div>
+
+          <!-- Longitud del Eje -->
+          <div class="bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 transition shadow-lg">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+              <span class="text-xs font-medium">Long. Eje Mayor</span>
+              <div class="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
+                <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+              </div>
+            </div>
+            <div class="flex items-baseline gap-1">
+              <span id="kpiLongEje" class="text-2xl font-black text-white">0</span>
+              <span class="text-xs text-slate-400 font-semibold">km</span>
+            </div>
+            <div class="text-[11px] text-slate-400 mt-1">Longitud máxima axial</div>
+          </div>
+
+          <!-- Ancho Medio -->
+          <div class="bg-slate-900/80 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 transition shadow-lg">
+            <div class="flex items-center justify-between text-slate-400 mb-2">
+              <span class="text-xs font-medium">Ancho Medio</span>
+              <div class="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center text-violet-400">
+                <i data-lucide="move-horizontal" class="w-4 h-4"></i>
+              </div>
+            </div>
+            <div class="flex items-baseline gap-1">
+              <span id="kpiAnchoMed" class="text-2xl font-black text-white">0</span>
+              <span class="text-xs text-slate-400 font-semibold">km</span>
+            </div>
+            <div class="text-[11px] text-slate-400 mt-1">Relación Área / Long.</div>
+          </div>
+        </div>
+
+        <!-- CAJA 3 & 4: HIPSOMETRÍA, PENDIENTES & FORMA -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          <!-- CAJA 3: ALTIMETRÍA Y RELIEVE -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+                <i data-lucide="mountain" class="w-4 h-4 text-emerald-400"></i>
+                Hipsometría y Pendientes
+              </h3>
+              <span id="badgeRelieve" class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                Relieve
+              </span>
+            </div>
+
+            <!-- Altitude Bar Visualizer -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs text-slate-400">
+                <span>Mín: <strong id="valAltMin" class="text-slate-200">0</strong> m</span>
+                <span>Media: <strong id="valAltMed" class="text-emerald-400 font-bold">0</strong> m</span>
+                <span>Máx: <strong id="valAltMax" class="text-slate-200">0</strong> m</span>
+              </div>
+              <div class="h-3 w-full bg-slate-800 rounded-full overflow-hidden p-0.5 relative flex items-center">
+                <div class="h-full bg-gradient-to-r from-teal-500 via-emerald-400 to-amber-400 rounded-full w-full opacity-85"></div>
+              </div>
+              <div class="flex justify-between text-[11px] text-slate-500">
+                <span>Desnivel total: <span id="valDesnivel" class="text-slate-400 font-medium">0</span> m</span>
+                <span>Desvío Estándar: ±<span id="valAltDS" class="text-slate-400 font-medium">0</span> m</span>
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800/80 grid grid-cols-2 gap-3">
+              <div class="bg-slate-800/50 p-2.5 rounded-xl">
+                <span class="text-[11px] text-slate-400">Pendiente Media</span>
+                <div class="text-lg font-bold text-white mt-0.5"><span id="valPendMed">0</span>%</div>
+              </div>
+              <div class="bg-slate-800/50 p-2.5 rounded-xl">
+                <span class="text-[11px] text-slate-400">Pendiente Máxima</span>
+                <div class="text-lg font-bold text-white mt-0.5"><span id="valPendMax">0</span>%</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CAJA 4: ÍNDICES DE FORMA Y RESPUESTA HIDROLÓGICA -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+                <i data-lucide="gauge" class="w-4 h-4 text-cyan-400"></i>
+                Morfometría e Hidrología
+              </h3>
+              <span class="text-[11px] text-slate-400 font-medium">Respuesta a Crecidas</span>
+            </div>
+
+            <!-- Gravelius (Kc) -->
+            <div class="bg-slate-800/40 border border-slate-800 p-3 rounded-xl space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-300">Índice de Gravelius (Kc)</span>
+                <span id="valGravelius" class="text-sm font-black text-cyan-400 font-mono">0.00</span>
+              </div>
+              <p id="interpGravelius" class="text-[11px] text-slate-400 leading-snug">
+                Interpretación morfométrica de Gravelius.
+              </p>
+            </div>
+
+            <!-- Horton (Kf) -->
+            <div class="bg-slate-800/40 border border-slate-800 p-3 rounded-xl space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-300">Factor de Forma de Horton (Kf)</span>
+                <span id="valHorton" class="text-sm font-black text-amber-400 font-mono">0.00</span>
+              </div>
+              <p id="interpHorton" class="text-[11px] text-slate-400 leading-snug">
+                Interpretación morfométrica de Horton.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- CAJA 5: SÍNTESIS HIDROGRÁFICA SISTEMATIZADA DEL PDF -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 md:p-6 shadow-xl space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                <i data-lucide="file-text" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-base text-white">Síntesis Descriptiva del Sistema Hídrico</h3>
+                <p class="text-xs text-slate-400">Información técnica extraída y sistematizada del informe INTA</p>
+              </div>
+            </div>
+            
+            <a 
+              href="https://geo-nodo01.inta.gob.ar/catalogue/#/document/64"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-300 border border-emerald-500/30 text-xs font-medium self-start sm:self-center transition"
+            >
+              <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+              Descargar Informe Completo (Geo-Nodo)
+            </a>
+          </div>
+
+          <div id="subSintesisText" class="text-sm text-slate-300 leading-relaxed space-y-2.5 pt-1">
+            <!-- Text dynamically inserted here -->
+          </div>
+        </div>
+
+        <!-- CAJA 6: LOS 3 MAPAS TEMÁTICOS ESTÁNDAR (UBICACIÓN, FLUJOS, PENDIENTES) -->
+        <div id="figuresSection" class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+                <i data-lucide="map" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-base text-white">Mapas Temáticos del Informe</h3>
+                <p class="text-xs text-slate-400">Mapas oficiales de delimitación, dirección de flujos y pendientes</p>
+              </div>
+            </div>
+
+            <!-- Tab buttons for the 3 standard maps -->
+            <div id="figureTabs" class="flex gap-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700 self-start">
+              <!-- Dynamically populated: Ubicación, Flujos, Pendientes -->
+            </div>
+          </div>
+
+          <!-- Figure display container -->
+          <div class="relative bg-slate-950 rounded-xl border border-slate-800 overflow-hidden flex flex-col items-center justify-center min-h-[350px] p-2">
+            <img 
+              id="activeFigureImg" 
+              src="" 
+              alt="Mapa temático del informe" 
+              class="max-h-[500px] w-auto object-contain rounded-lg shadow-2xl transition-all cursor-zoom-in"
+              onclick="openLightbox(this.src, document.getElementById('activeFigureTitle').textContent)"
+            />
+            <div class="mt-2 text-center">
+              <span id="activeFigureTitle" class="text-xs font-semibold text-slate-200"></span>
+              <p class="text-[10px] text-slate-500 mt-0.5">Haz clic sobre el mapa para ampliar en pantalla completa</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- CAJA 7: CONTEXTO DE LA MACROCUENCA -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+          <div class="flex items-center gap-2 border-b border-slate-800 pb-3">
+            <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-400">
+              <i data-lucide="git-branch" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <h3 class="font-bold text-sm text-white">Cuenca Mayor de Pertenencia: <span id="macroTitleName" class="text-emerald-400"></span></h3>
+              <p class="text-xs text-slate-400">Contexto hidrográfico de la macrocuenca a la que tributa</p>
+            </div>
+          </div>
+          <p id="macroSintesisText" class="text-xs md:text-sm text-slate-300 leading-relaxed">
+            <!-- Macro synthesis text dynamically inserted -->
+          </p>
+        </div>
+
+        <!-- CAJA 8: COMPARATIVA CON OTRAS SUBCUENCAS DE LA MACROCUENCA -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center text-violet-400">
+                <i data-lucide="bar-chart-2" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h3 class="font-bold text-sm text-white">Comparativa en la Macrocuenca</h3>
+                <p class="text-xs text-slate-400">Superficie comparada respecto a otras subcuencas tributarias</p>
+              </div>
+            </div>
+          </div>
+          <div class="h-48 w-full">
+            <canvas id="macroComparisonChart"></canvas>
+          </div>
+        </div>
+
+        <!-- FOOTER INFO -->
+        <div class="text-center text-xs text-slate-500 py-4 border-t border-slate-900">
+          <p>Fuente: Caracterización de las cuencas hídricas de las provincias del NOA • INTA EEA Salta</p>
+          <p class="mt-1">Paoli H., Elena H., Mosciaro J., Ledesma F., Noé Y. (2011)</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- LIGHTBOX MODAL FOR FIGURES -->
+  <div id="lightboxModal" class="hidden fixed inset-0 z-[5000] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4">
+    <button 
+      onclick="closeLightbox()"
+      class="absolute top-4 right-4 p-2.5 rounded-full bg-slate-800 hover:bg-slate-700 text-white transition border border-slate-700"
+    >
+      <i data-lucide="x" class="w-6 h-6"></i>
+    </button>
+    <img id="lightboxImg" src="" alt="Mapa ampliado" class="max-h-[85vh] max-w-[95vw] object-contain rounded-xl shadow-2xl border border-slate-800" />
+    <span id="lightboxCaption" class="mt-3 text-sm font-semibold text-slate-200 text-center max-w-xl"></span>
+  </div>
+
+  <!-- MODAL QUIÉNES SOMOS / AUTORES -->
+  <div id="aboutModal" class="hidden fixed inset-0 z-[5000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-5 relative max-h-[90vh] overflow-y-auto">
+      <button 
+        onclick="closeAboutModal()"
+        class="absolute top-4 right-4 p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
+      >
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center gap-3 border-b border-slate-800 pb-4">
+        <img src="logo_inta.png" alt="INTA" class="h-12 w-auto object-contain brightness-110" />
+        <div>
+          <h3 class="text-lg font-bold text-white leading-tight">Caracterización de las Cuencas Hídricas del NOA</h3>
+          <p class="text-xs text-emerald-400 font-medium">Instituto Nacional de Tecnología Agropecuaria (INTA)</p>
+          <p class="text-xs text-slate-400">Estación Experimental Agropecuaria Salta (EEA Salta)</p>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Equipo de Autores</h4>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3">
+            <div class="font-semibold text-sm text-white">Ing. Agr. Héctor Paoli</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">INTA EEA Salta</div>
+          </div>
+          <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3">
+            <div class="font-semibold text-sm text-white">Lic. Hernán Elena</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">INTA EEA Salta</div>
+          </div>
+          <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3">
+            <div class="font-semibold text-sm text-white">Ing. Javier Mosciaro</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">INTA EEA Salta</div>
+          </div>
+          <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3">
+            <div class="font-semibold text-sm text-white">Ing. Fernando Ledesma</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">INTA EEA Salta</div>
+          </div>
+          <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3 sm:col-span-2">
+            <div class="font-semibold text-sm text-white">Ing. Yanina Noé</div>
+            <div class="text-[11px] text-slate-400 mt-0.5">INTA EEA Salta</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-2 text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-3.5 rounded-xl border border-slate-800">
+        <p>
+          Este trabajo sistematiza la información morfométrica e hidrográfica de 85 subcuencas pertenecientes a 16 sistemas mayores del NOA, constituyendo una herramienta estratégica para el ordenamiento territorial, la gestión hídrica y la planificación agropecuaria.
+        </p>
+      </div>
+
+      <div class="pt-2 flex flex-col sm:flex-row gap-2.5">
+        <a 
+          href="https://geo-nodo01.inta.gob.ar/catalogue/#/document/64" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition shadow-lg shadow-emerald-900/30"
+        >
+          <i data-lucide="external-link" class="w-4 h-4"></i>
+          Descargar Publicación en Geo-Nodo INTA
+        </a>
+        <button 
+          onclick="closeAboutModal()"
+          class="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition"
+        >
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN SCRIPT -->
+  <script>
+    let map;
+    let geojsonLayer;
+    let cuencasData = null;
+    let currentSelectedId = null;
+    let comparisonChartInstance = null;
+    let baseLayers = {};
+    let currentActiveBaseLayer = null;
+    let isBordersOnlyMode = false;
+
+    // Initialize Dashboard
+    document.addEventListener('DOMContentLoaded', async () => {
+      lucide.createIcons();
+      initMap();
+      await loadData();
+      setupEvents();
+    });
+
+    // Setup Leaflet Map
+    function initMap() {
+      map = L.map('map', {
+        center: [-25.0, -65.4],
+        zoom: 6,
+        zoomControl: false
+      });
+
+      L.control.zoom({ position: 'topleft' }).addTo(map);
+
+      // Define Basemaps
+      baseLayers.satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP',
+        maxZoom: 18
+      });
+
+      baseLayers.topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        attribution: 'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)',
+        maxZoom: 17
+      });
+
+      baseLayers.dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        maxZoom: 19
+      });
+
+      baseLayers.osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19
+      });
+
+      currentActiveBaseLayer = baseLayers.satellite;
+      currentActiveBaseLayer.addTo(map);
+
+      // Basemap buttons
+      document.querySelectorAll('.basemap-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.basemap-btn').forEach(b => {
+            b.classList.remove('bg-emerald-600', 'text-white');
+            b.classList.add('text-slate-300');
+          });
+          btn.classList.add('bg-emerald-600', 'text-white');
+          btn.classList.remove('text-slate-300');
+
+          const layerKey = btn.getAttribute('data-layer');
+          if (baseLayers[layerKey] && baseLayers[layerKey] !== currentActiveBaseLayer) {
+            map.removeLayer(currentActiveBaseLayer);
+            currentActiveBaseLayer = baseLayers[layerKey];
+            currentActiveBaseLayer.addTo(map);
+          }
+        });
+      });
+    }
+
+    // Toggle: Solo Límites vs Relleno Coloreado
+    function toggleMapFillMode() {
+      isBordersOnlyMode = !isBordersOnlyMode;
+      const btn = document.getElementById('btnToggleFill');
+      const lbl = document.getElementById('lblToggleFill');
+      const icon = document.getElementById('iconToggleFill');
+
+      if (isBordersOnlyMode) {
+        btn.classList.add('bg-amber-500/20', 'text-amber-300', 'border-amber-500/40');
+        btn.classList.remove('bg-slate-800', 'text-slate-200');
+        lbl.textContent = 'Coloreado';
+        icon.setAttribute('data-lucide', 'eye-off');
+      } else {
+        btn.classList.remove('bg-amber-500/20', 'text-amber-300', 'border-amber-500/40');
+        btn.classList.add('bg-slate-800', 'text-slate-200');
+        lbl.textContent = 'Solo Límites';
+        icon.setAttribute('data-lucide', 'eye');
+      }
+      lucide.createIcons();
+
+      // Refresh geojson styles
+      if (geojsonLayer) {
+        geojsonLayer.eachLayer(layer => {
+          if (layer.feature) {
+            if (layer.feature.properties.id === currentSelectedId) {
+              layer.setStyle({
+                weight: 4,
+                color: '#facc15',
+                fillOpacity: isBordersOnlyMode ? 0.15 : 0.85
+              });
+            } else {
+              layer.setStyle(getLayerStyle(layer.feature));
+            }
+          }
+        });
+      }
+    }
+
+    // Style generator depending on fill mode
+    function getLayerStyle(feature) {
+      if (isBordersOnlyMode) {
+        return {
+          fillColor: 'transparent',
+          fillOpacity: 0,
+          weight: 1.8,
+          opacity: 0.9,
+          color: feature.properties.color || '#38bdf8'
+        };
+      } else {
+        return {
+          fillColor: feature.properties.color || '#10b981',
+          weight: 1.5,
+          opacity: 0.85,
+          color: '#f8fafc',
+          fillOpacity: 0.45
+        };
+      }
+    }
+
+    // Load Data
+    async function loadData() {
+      try {
+        const [dataRes, geoRes] = await Promise.all([
+          fetch('data/cuencas_data.json'),
+          fetch('data/cuencas_web.geojson')
+        ]);
+
+        cuencasData = await dataRes.json();
+        const geojsonData = await geoRes.json();
+
+        // Populate Macrocuencas filter
+        const filterSelect = document.getElementById('macroFilter');
+        cuencasData.macrocuencas.forEach(macro => {
+          const opt = document.createElement('option');
+          opt.value = macro.id;
+          opt.textContent = `${macro.name} (${macro.subcuencas_count})`;
+          filterSelect.appendChild(opt);
+        });
+
+        // Add GeoJSON layer to map
+        geojsonLayer = L.geoJSON(geojsonData, {
+          style: feature => getLayerStyle(feature),
+          onEachFeature: (feature, layer) => {
+            const p = feature.properties;
+            
+            layer.bindTooltip(`
+              <div class="font-bold text-xs text-white">${p.nombre}</div>
+              <div class="text-[10px] text-emerald-400 font-medium">${p.macro_nombre}</div>
+              <div class="text-[10px] text-slate-300 mt-0.5">Área: <strong>${p.superficie.toLocaleString()} km²</strong></div>
+            `, {
+              sticky: true,
+              direction: 'top',
+              offset: [0, -10]
+            });
+
+            layer.on({
+              mouseover: e => {
+                const l = e.target;
+                if (currentSelectedId !== p.id) {
+                  l.setStyle({
+                    weight: 3,
+                    color: '#38bdf8',
+                    fillOpacity: isBordersOnlyMode ? 0.2 : 0.75
+                  });
+                  l.bringToFront();
+                }
+              },
+              mouseout: e => {
+                const l = e.target;
+                if (currentSelectedId !== p.id) {
+                  l.setStyle(getLayerStyle(l.feature));
+                }
+              },
+              click: e => {
+                selectSubcuenca(p.id, true);
+              }
+            });
+          }
+        }).addTo(map);
+
+        map.fitBounds(geojsonLayer.getBounds(), { padding: [20, 20] });
+        document.getElementById('mapLoader').classList.add('hidden');
+
+      } catch (err) {
+        console.error("Error loading cuencas data:", err);
+        document.getElementById('mapLoader').innerHTML = `
+          <div class="text-rose-400 font-medium text-sm">Error cargando los datos. Por favor recarga la página.</div>
+        `;
+      }
+    }
+
+    // Select Subcuenca Handler
+    function selectSubcuenca(subId, zoomTo = false) {
+      if (!cuencasData) return;
+
+      const subRecord = cuencasData.subcuencas.find(s => s.id === subId);
+      if (!subRecord) return;
+
+      currentSelectedId = subId;
+
+      geojsonLayer.eachLayer(layer => {
+        if (layer.feature && layer.feature.properties.id === subId) {
+          layer.setStyle({
+            weight: 4,
+            color: '#facc15',
+            fillOpacity: isBordersOnlyMode ? 0.25 : 0.85
+          });
+          layer.bringToFront();
+          if (zoomTo) {
+            map.flyToBounds(layer.getBounds(), { padding: [40, 40], duration: 1.2 });
+          }
+        } else {
+          layer.setStyle(getLayerStyle(layer.feature));
+        }
+      });
+
+      renderSubcuencaDetails(subRecord);
+
+      if (window.innerWidth < 1024) {
+        document.getElementById('sidebarScroll').scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+
+    // Render Subcuenca Details into UI Cards
+    function renderSubcuencaDetails(sub) {
+      document.getElementById('welcomeState').classList.add('hidden');
+      const detailView = document.getElementById('detailView');
+      detailView.classList.remove('hidden');
+
+      // Header
+      document.getElementById('headerColorBar').style.backgroundColor = sub.macro_color;
+      document.getElementById('subTitle').textContent = sub.nombre;
+      
+      const macroBadge = document.getElementById('subMacroBadge');
+      macroBadge.textContent = sub.macro_nombre;
+      macroBadge.style.backgroundColor = `${sub.macro_color}25`;
+      macroBadge.style.color = sub.macro_color;
+      macroBadge.style.borderColor = `${sub.macro_color}50`;
+
+      document.getElementById('subCodeBadge').textContent = `Código Macro: ${sub.macro_id} | #${sub.idx + 1}`;
+
+      // KPIs
+      const m = sub.morfometria;
+      document.getElementById('kpiSuperficie').textContent = m.superficie_km2.toLocaleString();
+      document.getElementById('kpiPerimetro').textContent = m.perimetro_km.toLocaleString();
+      document.getElementById('kpiLongEje').textContent = m.longitud_eje_km.toLocaleString();
+      document.getElementById('kpiAnchoMed').textContent = m.ancho_medio_km.toLocaleString();
+
+      // Altimetry & Slope
+      document.getElementById('valAltMin').textContent = m.altitud_min_m.toLocaleString();
+      document.getElementById('valAltMed').textContent = m.altitud_med_m.toLocaleString();
+      document.getElementById('valAltMax').textContent = m.altitud_max_m.toLocaleString();
+      document.getElementById('valDesnivel').textContent = m.desnivel_m.toLocaleString();
+      document.getElementById('valAltDS').textContent = m.altitud_ds_m;
+      
+      document.getElementById('valPendMed').textContent = m.pendiente_media_pct;
+      document.getElementById('valPendMax').textContent = m.pendiente_max_pct;
+      document.getElementById('badgeRelieve').textContent = m.relieve_clase;
+
+      // Form Indices
+      document.getElementById('valGravelius').textContent = m.gravelius_kc.toFixed(3);
+      document.getElementById('interpGravelius').textContent = m.gravelius_interpretacion;
+      document.getElementById('valHorton').textContent = m.horton_kf.toFixed(3);
+      document.getElementById('interpHorton').textContent = m.horton_interpretacion;
+
+      // Synthesis Text
+      const textContainer = document.getElementById('subSintesisText');
+      textContainer.innerHTML = '';
+      if (sub.sintesis_pdf) {
+        const paragraphs = sub.sintesis_pdf.split(/(?<=\.)\s+(?=[A-Z])/);
+        let groupedText = "";
+        paragraphs.forEach((p, idx) => {
+          groupedText += p + " ";
+          if ((idx + 1) % 2 === 0 || idx === paragraphs.length - 1) {
+            const pEl = document.createElement('p');
+            pEl.textContent = groupedText.trim();
+            textContainer.appendChild(pEl);
+            groupedText = "";
+          }
+        });
+      }
+
+      // Figures Tabs: Exactly the 3 standard maps
+      setupFiguresSection(sub);
+
+      // Macro Context
+      const macro = cuencasData.macrocuencas.find(m => m.id === sub.macro_id);
+      if (macro) {
+        document.getElementById('macroTitleName').textContent = macro.name;
+        document.getElementById('macroSintesisText').textContent = macro.sintesis || "La cuenca mayor reúne los aportes de las subcuencas del sistema hidrográfico.";
+        
+        if (macro.superficie_total > 0) {
+          const share = ((m.superficie_km2 / macro.superficie_total) * 100).toFixed(1);
+          document.getElementById('kpiSupShare').textContent = `${share}% de la Cuenca Mayor`;
+        }
+
+        renderComparisonChart(macro, sub);
+      }
+
+      // Zoom button
+      document.getElementById('btnZoomToSub').onclick = () => {
+        geojsonLayer.eachLayer(l => {
+          if (l.feature && l.feature.properties.id === sub.id) {
+            map.flyToBounds(l.getBounds(), { padding: [40, 40], duration: 1.2 });
+          }
+        });
+      };
+
+      lucide.createIcons();
+    }
+
+    // Setup the 3 Standard Maps: Ubicación, Flujos, Pendientes
+    function setupFiguresSection(sub) {
+      const section = document.getElementById('figuresSection');
+      const tabsContainer = document.getElementById('figureTabs');
+      const imgEl = document.getElementById('activeFigureImg');
+      const titleEl = document.getElementById('activeFigureTitle');
+
+      tabsContainer.innerHTML = '';
+
+      if (!sub.figuras_renderizadas || sub.figuras_renderizadas.length === 0) {
+        section.classList.add('hidden');
+        return;
+      }
+      section.classList.remove('hidden');
+
+      sub.figuras_renderizadas.forEach((fig, index) => {
+        const btn = document.createElement('button');
+        btn.className = `px-3 py-1 text-xs font-semibold rounded-lg transition ${index === 0 ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`;
+        
+        let label = 'Ubicación';
+        if (fig.key === 'flujos' || fig.title.toLowerCase().includes('flujo')) label = 'Flujos';
+        else if (fig.key === 'pendiente' || fig.title.toLowerCase().includes('pendiente')) label = 'Pendientes';
+
+        btn.textContent = label;
+
+        btn.onclick = () => {
+          Array.from(tabsContainer.children).forEach(b => {
+            b.className = 'px-3 py-1 text-xs font-semibold rounded-lg transition text-slate-400 hover:text-white';
+          });
+          btn.className = 'px-3 py-1 text-xs font-semibold rounded-lg transition bg-cyan-600 text-white';
+
+          imgEl.src = fig.file;
+          titleEl.textContent = fig.title || label;
+        };
+
+        tabsContainer.appendChild(btn);
+      });
+
+      // Show first map
+      imgEl.src = sub.figuras_renderizadas[0].file;
+      titleEl.textContent = sub.figuras_renderizadas[0].title || 'Mapa de Delimitación y Ubicación';
+    }
+
+    // Render Bar Chart
+    function renderComparisonChart(macro, currentSub) {
+      const siblings = cuencasData.subcuencas.filter(s => s.macro_id === macro.id);
+      if (siblings.length <= 1) {
+        document.getElementById('macroComparisonChart').parentElement.classList.add('hidden');
+        return;
+      }
+      document.getElementById('macroComparisonChart').parentElement.classList.remove('hidden');
+
+      siblings.sort((a, b) => b.morfometria.superficie_km2 - a.morfometria.superficie_km2);
+
+      const labels = siblings.map(s => s.nombre.length > 14 ? s.nombre.substring(0, 13) + '…' : s.nombre);
+      const dataValues = siblings.map(s => s.morfometria.superficie_km2);
+      const bgColors = siblings.map(s => s.id === currentSub.id ? '#facc15' : `${macro.color}80`);
+
+      const ctx = document.getElementById('macroComparisonChart').getContext('2d');
+      if (comparisonChartInstance) {
+        comparisonChartInstance.destroy();
+      }
+
+      comparisonChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Superficie (km²)',
+            data: dataValues,
+            backgroundColor: bgColors,
+            borderRadius: 6,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: context => siblings[context[0].dataIndex].nombre,
+                label: context => ` ${context.raw.toLocaleString()} km²`
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: '#94a3b8', font: { size: 10 } },
+              grid: { display: false }
+            },
+            y: {
+              ticks: { color: '#94a3b8', font: { size: 10 } },
+              grid: { color: '#1e293b' }
+            }
+          }
+        }
+      });
+    }
+
+    // Setup UI Events
+    function setupEvents() {
+      // Macrobasin Filter
+      const macroFilter = document.getElementById('macroFilter');
+      macroFilter.addEventListener('change', (e) => {
+        const selectedMacroId = e.target.value;
+        if (!geojsonLayer) return;
+
+        if (selectedMacroId === 'all') {
+          geojsonLayer.eachLayer(layer => {
+            layer.setStyle(getLayerStyle(layer.feature));
+          });
+          map.flyToBounds(geojsonLayer.getBounds(), { padding: [20, 20], duration: 1.2 });
+        } else {
+          const matchedBounds = L.latLngBounds([]);
+          geojsonLayer.eachLayer(layer => {
+            if (layer.feature && layer.feature.properties.macro_id === selectedMacroId) {
+              layer.setStyle({
+                fillColor: layer.feature.properties.color,
+                fillOpacity: isBordersOnlyMode ? 0.15 : 0.7,
+                weight: 2.5,
+                color: '#ffffff'
+              });
+              matchedBounds.extend(layer.getBounds());
+            } else {
+              layer.setStyle({
+                fillOpacity: 0.04,
+                weight: 0.5,
+                color: '#334155'
+              });
+            }
+          });
+          if (matchedBounds.isValid()) {
+            map.flyToBounds(matchedBounds, { padding: [30, 30], duration: 1.2 });
+          }
+        }
+      });
+
+      // Search Autocomplete
+      const searchInput = document.getElementById('searchInput');
+      const searchResults = document.getElementById('searchResults');
+
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        if (query.length < 2) {
+          searchResults.classList.add('hidden');
+          return;
+        }
+
+        const matches = cuencasData.subcuencas.filter(s => 
+          s.nombre.toLowerCase().includes(query) || s.macro_nombre.toLowerCase().includes(query)
+        ).slice(0, 8);
+
+        if (matches.length === 0) {
+          searchResults.innerHTML = `
+            <div class="px-4 py-3 text-xs text-slate-500">No se encontraron cuencas coincidentes.</div>
+          `;
+          searchResults.classList.remove('hidden');
+          return;
+        }
+
+        searchResults.innerHTML = matches.map(m => `
+          <div 
+            class="px-4 py-2.5 hover:bg-slate-800 cursor-pointer border-b border-slate-800/60 last:border-0 transition"
+            onclick="selectFromSearch('${m.id}')"
+          >
+            <div class="text-xs font-semibold text-white">${m.nombre}</div>
+            <div class="text-[10px] text-emerald-400">${m.macro_nombre} • ${m.morfometria.superficie_km2.toLocaleString()} km²</div>
+          </div>
+        `).join('');
+
+        searchResults.classList.remove('hidden');
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+          searchResults.classList.add('hidden');
+        }
+      });
+
+      document.getElementById('btnResetMap').addEventListener('click', () => {
+        if (geojsonLayer) {
+          map.flyToBounds(geojsonLayer.getBounds(), { padding: [20, 20], duration: 1.2 });
+          macroFilter.value = 'all';
+          geojsonLayer.eachLayer(layer => layer.setStyle(getLayerStyle(layer.feature)));
+        }
+      });
+    }
+
+    function selectFromSearch(id) {
+      document.getElementById('searchResults').classList.add('hidden');
+      document.getElementById('searchInput').value = '';
+      selectSubcuenca(id, true);
+    }
+
+    // Lightbox modal controls
+    function openLightbox(src, title) {
+      const modal = document.getElementById('lightboxModal');
+      document.getElementById('lightboxImg').src = src;
+      document.getElementById('lightboxCaption').textContent = title;
+      modal.classList.remove('hidden');
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightboxModal').classList.add('hidden');
+    }
+
+    // About / Autores Modal
+    function openAboutModal() {
+      document.getElementById('aboutModal').classList.remove('hidden');
+    }
+
+    function closeAboutModal() {
+      document.getElementById('aboutModal').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>

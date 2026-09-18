@@ -1,0 +1,13 @@
+# Archivos temporales y caché
+__pycache__/
+*.pyc
+.system_generated/
+*.log
+scratch/
+test_*.py
+
+# PDFs originales (ya procesados y sintetizados en data/ y assets/)
+*.pdf
+
+# GeoJSON crudo original (el dashboard utiliza data/cuencas_web.geojson)
+cuencasnoa_js.geojson
