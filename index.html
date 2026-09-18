@@ -62,6 +62,31 @@
     }
     .leaflet-popup-tip { background: #1e293b; }
     .leaflet-container { background: #090d16; font-family: 'Inter', sans-serif; }
+
+    /* Leaflet Tooltip Styling - Dark Theme High Contrast */
+    .leaflet-tooltip {
+      background: rgba(15, 23, 42, 0.95) !important;
+      backdrop-filter: blur(8px);
+      border: 1px solid #334155 !important;
+      border-radius: 8px !important;
+      color: #f8fafc !important;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+      padding: 8px 12px !important;
+      font-family: 'Inter', sans-serif !important;
+      pointer-events: none !important;
+    }
+    .leaflet-tooltip-top:before {
+      border-top-color: #334155 !important;
+    }
+    .leaflet-tooltip-bottom:before {
+      border-bottom-color: #334155 !important;
+    }
+    .leaflet-tooltip-left:before {
+      border-left-color: #334155 !important;
+    }
+    .leaflet-tooltip-right:before {
+      border-right-color: #334155 !important;
+    }
   </style>
 </head>
 <body class="h-full bg-slate-950 text-slate-100 flex flex-col overflow-hidden">
@@ -151,7 +176,6 @@
         <div class="flex gap-1">
           <button data-layer="satellite" class="basemap-btn px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-600 text-white transition">Satélite</button>
           <button data-layer="topo" class="basemap-btn px-2.5 py-1 text-xs font-medium rounded-lg text-slate-300 hover:bg-slate-800 transition">Relieve</button>
-          <button data-layer="dark" class="basemap-btn px-2.5 py-1 text-xs font-medium rounded-lg text-slate-300 hover:bg-slate-800 transition">Oscuro</button>
           <button data-layer="osm" class="basemap-btn px-2.5 py-1 text-xs font-medium rounded-lg text-slate-300 hover:bg-slate-800 transition">Calles</button>
         </div>
 
@@ -363,9 +387,15 @@
                 <span class="text-[11px] text-slate-400">Pendiente Media</span>
                 <div class="text-lg font-bold text-white mt-0.5"><span id="valPendMed">0</span>%</div>
               </div>
-              <div class="bg-slate-800/50 p-2.5 rounded-xl">
-                <span class="text-[11px] text-slate-400">Pendiente Máxima</span>
+              <div class="bg-slate-800/50 p-2.5 rounded-xl flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] text-slate-400">Pendiente Máxima</span>
+                  <span title="Calculada a partir del Modelo Digital de Elevación (MDE) en SIG" class="cursor-help text-slate-400 hover:text-emerald-400">
+                    <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                  </span>
+                </div>
                 <div class="text-lg font-bold text-white mt-0.5"><span id="valPendMax">0</span>%</div>
+                <div class="text-[10px] text-slate-400 leading-tight mt-0.5">Calculado a partir de MDE</div>
               </div>
             </div>
           </div>
@@ -635,11 +665,6 @@
         maxZoom: 17
       });
 
-      baseLayers.dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap &copy; CARTO',
-        maxZoom: 19
-      });
-
       baseLayers.osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors',
         maxZoom: 19
@@ -647,6 +672,15 @@
 
       currentActiveBaseLayer = baseLayers.satellite;
       currentActiveBaseLayer.addTo(map);
+
+      // Dismiss any open tooltip on map move, pan, or zoom
+      map.on('movestart zoomstart', () => {
+        if (geojsonLayer) {
+          geojsonLayer.eachLayer(l => {
+            if (l.closeTooltip) l.closeTooltip();
+          });
+        }
+      });
 
       // Basemap buttons
       document.querySelectorAll('.basemap-btn').forEach(btn => {
@@ -754,13 +788,17 @@
             const p = feature.properties;
             
             layer.bindTooltip(`
-              <div class="font-bold text-xs text-white">${p.nombre}</div>
-              <div class="text-[10px] text-emerald-400 font-medium">${p.macro_nombre}</div>
-              <div class="text-[10px] text-slate-300 mt-0.5">Área: <strong>${p.superficie.toLocaleString()} km²</strong></div>
+              <div class="font-bold text-xs text-white leading-snug">${p.nombre}</div>
+              <div class="text-[11px] text-emerald-400 font-semibold mt-0.5">${p.macro_nombre}</div>
+              <div class="text-[11px] text-slate-200 mt-1 flex items-center gap-1.5">
+                <span class="text-slate-400">Superficie:</span>
+                <span class="font-bold text-amber-300">${p.superficie.toLocaleString()} km²</span>
+              </div>
             `, {
               sticky: true,
               direction: 'top',
-              offset: [0, -10]
+              offset: [0, -10],
+              opacity: 1
             });
 
             layer.on({
@@ -777,11 +815,14 @@
               },
               mouseout: e => {
                 const l = e.target;
+                if (l.closeTooltip) l.closeTooltip();
                 if (currentSelectedId !== p.id) {
                   l.setStyle(getLayerStyle(l.feature));
                 }
               },
               click: e => {
+                const l = e.target;
+                if (l.closeTooltip) l.closeTooltip();
                 selectSubcuenca(p.id, true);
               }
             });
@@ -807,6 +848,13 @@
       if (!subRecord) return;
 
       currentSelectedId = subId;
+
+      // Close any persistent tooltips immediately on selection
+      if (geojsonLayer) {
+        geojsonLayer.eachLayer(layer => {
+          if (layer.closeTooltip) layer.closeTooltip();
+        });
+      }
 
       geojsonLayer.eachLayer(layer => {
         if (layer.feature && layer.feature.properties.id === subId) {
