@@ -14,7 +14,6 @@ FIGURES_DIR = os.path.join(ASSETS_DIR, 'figures')
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(FIGURES_DIR, exist_ok=True)
 
-# Replacements to guarantee perfect Spanish text
 REPLACEMENTS = [
     ('r\ufffdo', 'río'), ('R\ufffdo', 'Río'),
     ('h\ufffdricas', 'hídricas'), ('h\ufffdrico', 'hídrico'), ('h\ufffdricos', 'hídricos'),
@@ -55,31 +54,37 @@ def clean_text(text):
         text = text.replace(orig, rep)
     return text
 
-def clean_table_figure_refs(text):
-    """Strips references to Cuadros and Figuras so the text reads like clean narrative prose"""
-    if not text:
+def clean_text_refs(t):
+    if not t:
         return ""
     
-    # Remove parenthetical references: (Cuadro 1), (Cuadro 1a), (Cuadros 1a y 1b), (Fig. 1), (Figura 2), etc.
-    text = re.sub(r'\s*\([Cc]uadros?\s*[\d\w\s,y\-a-b]+\)', '', text)
-    text = re.sub(r'\s*\([Ff]iguras?\s*[\d\w\s,y\-a-b]+\)', '', text)
-    text = re.sub(r'\s*\([Ff]igs?\.?\s*[\d\w\s,y\-a-b]+\)', '', text)
-    text = re.sub(r'\s*\(ver\s+[^)]+\)', '', text)
+    # Protect metric units like '3.800 m.' so they don't look like sentence periods
+    t = re.sub(r'\b(\d+(?:[.,]\d+)?)\s*m\.\s+', r'\1 metros ', t)
+    t = re.sub(r'\b(\d+(?:[.,]\d+)?)\s*km\.\s+', r'\1 km ', t)
+    t = re.sub(r'\b(\d+(?:[.,]\d+)?)\s*ha\.\s+', r'\1 ha ', t)
+
+    # Remove parenthetical references
+    t = re.sub(r'\s*\([Cc]uadros?\s*[\d\w\s,y\-a-b]+\)', '', t)
+    t = re.sub(r'\s*\([Ff]iguras?\s*[\d\w\s,y\-a-b]+\)', '', t)
+    t = re.sub(r'\s*\([Ff]igs?\.?\s*[\d\w\s,y\-a-b]+\)', '', t)
+    t = re.sub(r'\s*\(ver\s+[^)]+\)', '', t)
     
-    # Remove sentences purely pointing to tables or figures
-    text = re.sub(r'[^.]*?\b(?:se\s+muestra|se\s+observa|puede\s+observarse|se\s+presenta)\s+en\s+(?:el\s+)?(?:los\s+)?cuadros?\s+[\d\w\s,y\-a-b]+[^.]*\.', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'El\s+cuadro\s+[\d\w]+\s+y\s+la\s+figura\s+[\d\w]+\s+muestran[^.]*\.', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'En\s+los\s+cuadros\s+[\d\w\s,ya-b]+\s+se\s+muestran[^.]*\.', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'En\s+los\s+cuadros\s+[\d\w\s,ya-b]+\s+se\s+pueden\s+identificar[^.]*\.', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'En\s+el\s+cuadro\s+[\d\w\s,ya-b]+\s+se\s+presentan[^.]*\.', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'\bCuadros?\s+[\d\w\s,y\-a-b]+\.?', '', text, flags=re.IGNORECASE)
+    # Remove sentences pointing only to tables
+    t = re.sub(r'[^.]*?\b(?:se\s+indica|se\s+muestra|se\s+observa|puede\s+observarse|se\s+detalla|se\s+presentan?)\s+en\s+(?:el\s+)?(?:los\s+)?cuadros?\s+[\d\w\s,y\-a-b]+[^.]*\.', '', t, flags=re.IGNORECASE)
+    t = re.sub(r'Del\s+an[aá]lisis\s+de\s+(?:los\s+)?cuadros?\s+[\d\w\s,y\-a-b]+,?\s*', 'Del análisis de los registros hidrológicos, ', t, flags=re.IGNORECASE)
+    t = re.sub(r'El\s+cuadro\s+[\d\w]+\s+y\s+la\s+figura\s+[\d\w]+\s+muestran[^.]*\.', '', t, flags=re.IGNORECASE)
+    t = re.sub(r'El\s+cuadro\s+[\d\w]+\s+muestra[^.]*\.', '', t, flags=re.IGNORECASE)
+    t = re.sub(r'En\s+los\s+cuadros\s+[\d\w\s,ya-b]+\s+se\s+muestran[^.]*\.', '', t, flags=re.IGNORECASE)
+    t = re.sub(r'En\s+el\s+cuadro\s+[\d\w\s,ya-b]+\s+se\s+muestra[^.]*\.', '', t, flags=re.IGNORECASE)
+    t = re.sub(r'En\s+los\s+cuadros\s+[\d\w\s,ya-b]+\s+se\s+pueden\s+identificar[^.]*\.', '', t, flags=re.IGNORECASE)
+    t = re.sub(r'\bCuadros?\s+[\d\w\s,y\-a-b]+\.?', '', t, flags=re.IGNORECASE)
     
-    # Clean up double punctuation or awkward whitespace
-    text = re.sub(r'\s+,', ',', text)
-    text = re.sub(r'\s+\.', '.', text)
-    text = re.sub(r'\.{2,}', '.', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+    # Clean whitespace and punct
+    t = re.sub(r'\s+,', ',', t)
+    t = re.sub(r'\s+\.', '.', t)
+    t = re.sub(r'\.{2,}', '.', t)
+    t = re.sub(r'\s+', ' ', t).strip()
+    return t
 
 def parse_pdf_sintesis(pdf_path, is_macro=False):
     if not os.path.exists(pdf_path):
@@ -90,69 +95,108 @@ def parse_pdf_sintesis(pdf_path, is_macro=False):
         print(f"Error opening {pdf_path}: {e}")
         return ""
 
-    narrative_paragraphs = []
+    paragraphs = []
     collecting = False
+    in_table = False
     
-    for page_idx, page in enumerate(doc):
+    for page_idx in range(len(doc)):
+        page = doc[page_idx]
         text = clean_text(page.get_text())
         lines = [l.strip() for l in text.split('\n') if l.strip()]
-        page_stops = False
-        current_para = []
+        
+        stopped = False
+        cur_para = []
         
         for line in lines:
-            line_lower = line.lower()
-            if 'sntesis descriptiva' in line_lower or 'síntesis descriptiva' in line_lower:
+            ll = line.lower()
+            
+            if 'sntesis descriptiva' in ll or 'síntesis descriptiva' in ll:
                 collecting = True
                 continue
+                
             if not collecting:
                 continue
                 
-            # Stop headings for subbasins or macros
+            # STOP condition: Caracteristicas morfologicas or Estaciones de aforo
             if is_macro:
-                if line_lower.startswith(('cuadro 1:', 'cuadro 1 ', 'figura 1:')) or 'superficie y per' in line_lower:
-                    page_stops = True
+                if ll.startswith(('cuadro 1:', 'cuadro 1 ', 'figura 1:')) or 'superficie y per' in ll:
+                    stopped = True
                     break
             else:
-                if line_lower.startswith(('caractersticas morfolgicas', 'características morfológicas', 'estaciones de aforo', 'cuadro 1a:', 'cuadro 1:', 'cuadro 2a:')) or \
-                   'c a u d a l e s   m e d i o s' in line_lower or 'c a u d a l e s  m e d i o s' in line_lower:
-                    page_stops = True
+                if ll.startswith(('caractersticas morfolgicas', 'características morfológicas', 'estaciones de aforo')) or \
+                   'c a u d a l e s   m e d i o s' in ll or 'c a u d a l e s  m e d i o s' in ll:
+                    stopped = True
                     break
                 
+            # Skip page headers and author lines
             if any(h in line for h in ['EEA Salta', 'Paoli H', '2011 -', 'Salta, Argentina', 'Salta,  Argentina']):
                 continue
             if line.startswith(('Cuenca ', 'Subcuenca ', 'Cuenca:')):
                 continue
-            if line.lower().startswith(('figura ', 'mapa ')) and len(line) < 100:
+            if ll.startswith(('figura ', 'mapa ')) and len(line) < 120:
                 continue
                 
-            current_para.append(line)
+            # Table detection
+            if ll.startswith('cuadro ') and len(line) < 120:
+                in_table = True
+                if cur_para:
+                    paragraphs.append(" ".join(cur_para))
+                    cur_para = []
+                continue
+                
+            if in_table:
+                if ll.startswith('fuente:'):
+                    in_table = False
+                continue
+                
+            # Skip stray table column headers or numbers
+            if ll in ['subcuenca', 'superficie', '( km2)', '(km2)', 'perímetro de la cuenca', '(km)', 'nombre de la obra', 'ubicación', 'margen derecha', 'margen izquierda']:
+                continue
+            if any(t_kw in ll for t_kw in ['q medio anual', 'q. medio mensual', 'estación fuente ciclo', 'derrames hm3', 'l/s/km2']):
+                continue
+            if re.match(r'^[\d\s.,km%()\-+/*]+$', line) and len(line) < 35:
+                continue
+                
+            cur_para.append(line)
             
-        if current_para:
-            narrative_paragraphs.append(" ".join(current_para))
-        if page_stops:
+        if cur_para:
+            paragraphs.append(" ".join(cur_para))
+            
+        if stopped:
             break
             
-    full = " ".join(narrative_paragraphs)
-    full = clean_table_figure_refs(full)
+    full = " ".join(paragraphs)
+    full = clean_text_refs(full)
     
-    # If text is very long (> 2200 chars), synthesize by taking complete sentences up to ~1800 chars
-    if len(full) > 2200:
-        sentences = [s.strip() for s in re.split(r'(?<=\.)\s+', full) if len(s.strip()) > 15]
+    # Split into clean complete sentences
+    raw_sentences = [s.strip() for s in re.split(r'(?<=\.)\s+', full) if len(s.strip()) > 15]
+    valid_sentences = []
+    
+    for s in raw_sentences:
+        if any(bad in s.lower() for bad in ['q medio', 'toma ovando', 'nombre de la obra', 'decripcion de caracteristicas', 'subcuenca: las conchas']):
+            continue
+        if s.endswith(('y', 'de', 'el', 'la', 'los', 'las', 'en', 'del')):
+            continue
+        if not s.endswith('.'):
+            s += '.'
+        valid_sentences.append(s)
+        
+    # If text is very long (> 2400 chars), prioritize the most relevant hydrological sentences up to ~1900 chars
+    total_len = sum(len(s) for s in valid_sentences)
+    if total_len > 2400:
         selected = []
         cur_len = 0
-        for s in sentences:
-            if any(skip in s.lower() for skip in ['período 19', 'estación de aforo', 'aforados', 'derrames']):
+        for s in valid_sentences:
+            if any(skip in s.lower() for skip in ['período 19', 'estación de aforo', 'aforados', 'derrames', 'hm3', 'm3/s', 'l/s/km2']):
                 continue
             selected.append(s)
             cur_len += len(s)
-            if cur_len > 1800:
+            if cur_len > 1850:
                 break
-        full = " ".join(selected)
+        valid_sentences = selected
 
-    if full and not full.endswith('.'):
-        full += '.'
-
-    return full
+    result = " ".join(valid_sentences).strip()
+    return result
 
 # Explicit 1-to-1 mapping for the 85 GeoJSON features
 EXPLICIT_PDF_MAP = {
